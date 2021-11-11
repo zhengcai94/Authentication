@@ -31,7 +31,8 @@ mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose) //passportLocalMongoose is what we're gonna use to has and salt our passwords and to save our users into our mongoDB.
@@ -90,20 +91,46 @@ app.get("/register", function(req, res) {
 
 
 app.get("/secrets", function(req, res) {
-    // The below line was added so we can't display the "/secrets" page
-    // after we logged out using the "back" button of the browser, which
-    // would normally display the browser cache and thus expose the 
-    // "/secrets" page we want to protect. Code taken from this post.
-    res.set(
-        'Cache-Control', 
-        'no-cache, private, no-store, must-revalidate, max-stal e=0, post-check=0, pre-check=0'
-    );
+    
+    User.find({secret: {$ne: null}}, function(err, foundUsers) {
+        if(err) {
+            res.send(err);
+        } else {
+            if(foundUsers) {
+                res.render("secrets", {usersWithSecrets: foundUsers});
+            }
+        }
+    })
+})
+    
+    
+
+app.get("/submit", function(req, res) {
     if(req.isAuthenticated()) {
-        res.render("secrets");
+        res.render("submit");
     } else {
         res.redirect("/login");
     }
 })
+
+app.post("/submit", function(req, res) {
+  const submittedSecret = req.body.secret;
+  //passport actually save the current users details because when we initiate a new login session, it will save that user details into the req variable.
+  User.findById(req.user._id, function(err, foundUser) {
+      if(err) {
+          res.send(err);
+      } else {
+          if(foundUser) {
+              foundUser.secret = submittedSecret;
+              foundUser.save(function() {
+                  res.redirect("/secrets");
+              })
+          }
+      }
+  })
+  
+})
+
 
 app.get("/logout", function(req, res) {
     req.logout();
